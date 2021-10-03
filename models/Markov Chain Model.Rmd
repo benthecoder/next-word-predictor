@@ -1,0 +1,56 @@
+---
+title: "Markov Chain and Text Generation"
+author: "Benedict Neo"
+date: "6/8/2021"
+output:
+  html_document:
+   toc: true
+   toc_float: true
+   toc_depth: 2
+   theme: flatly
+   highlight: zenburn
+   df_print: paged
+   code_folding: hide
+---
+
+```{r}
+library(markovchain)
+```
+
+```{r}
+fit <- markovchainFit(c("Jesus christ", "my", "name", "is", "ben", "ben", "is", "cool"))
+res <- fit$estimate['Jesus christ',]
+sort(res, decreasing=T) %>%
+   unlist()
+```
+
+```{r}
+library(here)
+library(tidyverse)
+```
+
+```{r}
+options(future.globals.maxSize = 4000 * 1024^5)
+```
+
+```{r}
+temp_path <- here("10_DataScienceCapstone/data/ngrams")
+
+unigrams  <- load(here(temp_path, "unigrams.rda"))
+bigrams <- load(here(temp_path, "bigrams.rda"))
+trigrams <- load(here(temp_path, "trigrams.rda"))
+```
+
+```{r}
+temp <- sample(bigram_tb$bigram, 100)
+
+fit <- markovchainFit(temp, method="laplace")
+
+str_subset(names(fit$estimate), "beat")
+
+fit$estimate['happy thanksgiving',] %>% 
+   sort(decreasing = T) %>% 
+   .[1] %>% 
+   names()
+```
+
