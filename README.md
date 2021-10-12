@@ -14,7 +14,15 @@ Click [here](docs/corpora-info.md) for more information about the corpora used t
 |   news.txt  | 196.3 MB |  1,010,242 | 34,372,720 |  11,384  |
 | twitter.txt | 159.4 MB |  2,360,148 | 30,374,206 |  40,833  |
 
-### N-grams wordclouds
+### N-grams bar charts
+
+<img src="figs/unigram_bar.png" width="600" height="500" />
+
+<img src="figs/bigram_bar.png" width="600" height="500" />
+
+<img src="figs/trigram_bar.png" width="600" height="500" />
+
+### Ngrams wordclouds
 
 <img src="figs/unigram_wc.png" width="600" height="500" />
 
@@ -22,11 +30,9 @@ Click [here](docs/corpora-info.md) for more information about the corpora used t
 
 <img src="figs/trigram_wc.png" width="600" height="500" />
 
-View the full report [here](https://benthecoder.github.io/JohnHopkinsDataScience/10_DataScienceCapstone/report/milestone-report.html)
+View the full report [here](https://benthecoder.github.io/next-word-predictor/report/milestone-report.html)
 
 ## Model Building
-
-In progress...
 
 The plan is to build a markov chain and LSTM model with python
 

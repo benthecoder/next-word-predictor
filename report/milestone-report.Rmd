@@ -3,9 +3,15 @@ title: Data Science Capstone Project
 subtitle: Milestone Report
 author: Benedict Neo Yao En
 date: 28-06-2021
-output: 
+output:
   html_document:
-    toc: true
+   toc: true
+   toc_float: true
+   toc_depth: 3
+   theme: flatly
+   highlight: zenburn
+   df_print: paged
+   code_folding: hide
 ---
 
 ## Executive Summary
@@ -36,21 +42,24 @@ There were several languages provided, but I only used the English files:
 I first start with loading the libraries using the package check function from [this article](https://vbaliga.github.io/verify-that-r-packages-are-installed-and-loaded/) to check if they're installed
 
 ```{r load_libraries, message=FALSE}
-# list all packages
-packages = c("tidyverse", # a collection of R packages designed for data science
-             "tidytext", # text mining library that follows the tidy data principle
-             "here",# easy file referencing in project-oriented workflows
-             "tm", # A framework for text mining applications within R.
-             "RColorBrewer", # color palette for R plots.
-             "wordcloud2", # word cloud as html widgets
-             "htmlwidgets", # html widgets in R
-             "webshot", # take screenshots of web pages from R
-             "kableExtra") # simple table generator to make table outputs nicer
+## list all packages
 
 
-## If a package is installed, it will be loaded. If any 
-## are not, the missing package(s) will be installed 
-## from CRAN and then loaded.
+packages = c(
+  "tidyverse", # a collection of R packages designed for data science
+  "tidytext", # text mining library that follows the tidy data principle
+  "here", # easy file referencing in project-oriented workflows
+  "tm", #A framework for text mining applications within R.
+  "RColorBrewer", # color palette for R plots.
+  "wordcloud2", # word cloud as html widgets
+  "htmlwidgets", # html widgets in R
+  "webshot", # take screenshots of web pages from R
+  "kableExtra", # simple table generator to make table outputs nicer
+  "feather" # A Fast On-Disk Format for data frames powered by Apache Arrow 
+)
+
+## If a package is installed, it will be loaded. If any are not, the missing
+## package(s) will be installed from CRAN and then loaded.
 
 package.check <- lapply(
   packages,
@@ -64,76 +73,25 @@ package.check <- lapply(
 
 webshot::install_phantomjs() # to save wordcloud plot
 theme_set(theme_classic())
-```
 
+# Declare location of current report
+here::i_am("report/milestone-report.Rmd")
+```
 
 ```{r helper_funcs, eval=TRUE, include=FALSE}
 # read text file helper function
-readTxtFile <- function(path) { 
-    con <- file(path, "r")
-    text <- readLines(con, skipNul=T)
-    close(con)
-    return(text)
-}
-
-# Creates a table given the text files
-file_info <- function(names) {
-  # file size
-  size <- file.info(here(data_path, names))$size / (2 ** 20)
-  
-  # word count
-  (total_words_bash <-
-      system("wc -w ../data/original/*.txt", intern = TRUE))
-  regexp <- "[[:digit:]]+"
-  
-  word_count <- unlist(str_split(str_extract(total_words_bash, regexp), " ")[1:3])
-  
-  line_count <- c()
-  max_line <- c()
-  
-  for (name in names) {
-    file <- readTxtFile(here(data_path, name))
-    num_lines <- length(file)
-    
-    longest_line <- as.numeric(summary(nchar(file))["Max."])
-    
-    line_count <- c(line_count, num_lines)
-    max_line <- c(longest_line, max_line)
-  }
-  
-  tb <- tibble(
-    "file_name" = names,
-    "size" = paste(round(size, 1), "MB"),
-    "line_count" = line_count,
-    "word_count" = as.integer(word_count),
-    "max_line" = as.integer(max_line)
-  ) %>%
-    mutate_if(is.numeric, list(~prettyNum(., big.mark = ",")))
-  
-  return(tb)
-}
-
-### Sampling text file code
-sample_file <- function(filename, filepath, prob) {
-  set.seed(2021)
-  con <- file(filepath, "r")
-  file <- readLines(con, skipNul = T)
-  len <- length(file)
-  sub_file <- file[rbinom(n = len, size = 1, prob = prob) == 1]
+readTxtFile <- function(path) {
+  con <- file(path, "r")
+  text <- readLines(con, skipNul = T)
   close(con)
-  
-  sample_path <- here("10_DataScienceCapstone/data/sampled")
-  if (!dir.exists(sample_path)) {
-    dir.create(sample_path)
-  }
-  
-  new_file_path <- paste0(sample_path, "/sub_", filename)
-  if (!file.exists(new_file_path)) {
-    out <- file(new_file_path, "w")
-    writeLines(sub_file, con = out)
-    close(out)
-  }
+  return(text)
 }
+
+# other helper functions
+source(here('scripts/data_info.R'))
+source(here('scripts/sample_data.R'))
+source(here('scripts/download_data.R'))
+source(here('scripts/get_bad_words.R'))
 ```
 
 ## Getting the Data
@@ -144,7 +102,7 @@ I coded a helper function `download_data` which essentially downloads the data f
 # download_data("en_US", "original")
 
 # save the data path
-data_path <- here("10_DataScienceCapstone/data/original") 
+data_path <- here("data/original")
 
 file_names <- list.files(data_path) # list all files
 
@@ -170,7 +128,7 @@ Refer to appendix for the code and for a bash alternative.
 
 ```{r file_info}
 # show information of our text data.
-file_info(file_names) %>%
+data_info(file_names) %>%
   kbl() %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
@@ -181,24 +139,29 @@ From this, we see that the largest file is are the blogs, followed by news then 
 
 Since the data is fairly large as observed from the file information, I've decided to sample the data to speed up my analysis and the development of the initial model. I have three sources - news, blogs and tweets.
 
-Since news text will logically have better English standards like spelling and grammar, I will sample slightly more (10%) from news and 5% from blogs and twitter, which can be done using probability and `rbinom` from R
+### Methodology
 
+Since news text will logically have better English standards like spelling and grammar, I will sample more (15%) from news, 5% from blogs, and 1% from twitter, which can be done using probability and `rbinom` from R
 
 Code for `sample_file` is in appendix below.
 
 ```{r}
-# prob is probability of sampling
-sample_file(file_names[1], blogs_txt_path, prob = 0.05)
-sample_file(file_names[2], news_txt_path, prob = 0.1)
-sample_file(file_names[3], twitter_txt_path, prob = 0.05)
+set.seed(2021)
 
-sample_path <- here("10_DataScienceCapstone/data/sampled")
+# prob is probability of sampling
+sample_data(file_names[1], blogs_txt_path, prob = 0.05)
+sample_data(file_names[2], news_txt_path, prob = 0.15)
+sample_data(file_names[3], twitter_txt_path, prob = 0.01)
+
+sample_path <- here("data/sampled")
 list.files(sample_path)
 ```
 
 The sampled data will be written to a new folder called `sampled` under the data folder, and the text files will be have the "sub\_" prefix.
 
 ## Data Cleaning
+
+### Combind text data
 
 With our sampled data, we can now read in the text files individually using a helper function `readTxtFile` which uses the `readLines` function.
 
@@ -212,6 +175,9 @@ news_txt <- readTxtFile(here(sample_path, sampled_file_names[2]))
 blogs_txt <- readTxtFile(here(sample_path, sampled_file_names[3]))
 
 combined_txt <- paste(c(twitter_txt, news_txt, blogs_txt))
+
+# clear from memory
+rm("twitter_txt", "news_txt", "blogs_txt")
 ```
 
 Now it's time to clean the data to prepare it for analysis.
@@ -226,36 +192,58 @@ Now it's time to clean the data to prepare it for analysis.
 
 Most of these tasks are already performed by the `unnest_tokens` function from `tidytext`, which makes my job easier.
 
-```{r stopwords_badwords}
+```{r stopwords}
 # Load data for stop words
 data(stop_words)
-# head(stop_words)
+head(stop_words)
+```
 
-# get bad words from github repository
-get_bad_words <- function() {
-  url <-
-    "https://raw.githubusercontent.com/RobertJGabriel/Google-profanity-words/master/list.txt"
-  bad_words <- read.delim2(
-    file = url,
-    header = F,
-    sep = "\t",
-    col.names = "text"
-  )
-  return(bad_words)
-}
+```{r badwords}
+bad_words <- get_bad_words() %>% 
+  rename('word' = text)
 
-bad_words <- get_bad_words() %>% rename('word' = text)
+head(bad_words, 3)
 
-# Create own stop words here
-# my_stop_words <- data.frame(word = c())
+## save bad words file
+write_feather(bad_words, here("app/data/bad_words.feather"))
 ```
 
 With profane and stop words data ready, we can begin building our n-gram models. Note the cleaning is happening as we are building our ngram tibbles.
 
-### Unigram tibble
+## Data Transformation
+
+### Making ngrams with tidytext
+
+Below showcases the functionality of `unnest_tokens` in tidytext
+
+```{r}
+string <- "Alice was beginning to get very tired of sitting by her sister
+on the bank, and of having nothing to do:  once or twice she had
+peeped into the book her sister was reading, but it had no
+pictures or conversations in it, `and what is the use of a book,'
+thought Alice `without pictures or conversation?'"
+
+tibble(line = 1:length(string), text=string) %>% 
+  unnest_tokens(word, text) %>% 
+  head()
+```
+Here's how we get bigrams
+```{r}
+tibble(line = 1:length(string), text=string) %>% 
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) %>% 
+  head()
+```
+To get further ngrams, all you need to do is increase the value of n
+
+```{r}
+ngram_tb <- tibble(line = 1:(length(combined_txt)), text = combined_txt)
+head(ngram_tb)
+```
+
+### Unigram
 
 ```{r unigram_tb}
-unigram_tb <- tibble(line = 1:(length(combined_txt)), text = combined_txt) %>%
+unigram_tb <-  ngram_tb %>% 
   unnest_tokens(word, text) %>% # turn our text file into individual words
   anti_join(stop_words, by = "word") %>% # remove stop words
   anti_join(bad_words, by = "word") %>% # remove profane words
@@ -265,48 +253,73 @@ unigram_tb <- tibble(line = 1:(length(combined_txt)), text = combined_txt) %>%
 head(unigram_tb)
 ```
 
-### Bigram tibble
+### Bigram
 
 ```{r bigrams_tb}
-bigram_tb <- tibble(line = 1:(length(combined_txt)), text = combined_txt) %>%
+bigram_tb <- ngram_tb %>%
   unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
   mutate_at("bigram", str_replace, "[[:punct:]]", "") %>%
+  filter(!str_detect(bigram, "\\d+")) %>%
   separate(bigram, c("word1", "word2"), sep = " ") %>%
-  filter(!word1 %in% stop_words$word) %>%
-  filter(!word2 %in% stop_words$word) %>%
-  unite(bigram, word1, word2, sep = " ") %>%
-  filter(!str_detect(bigram, "\\d+")) %>% 
-  filter(!str_detect(bigram, "NA")) # remove missing values
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word, 
+         !word1 %in% bad_words$word,
+         !word2 %in% bad_words$word)
 
 head(bigram_tb)
 ```
 
-### Trigram tibble
+### Trigram
 
 ```{r trigrams_tb}
-trigram_tb <- tibble(line = 1:(length(combined_txt)), text = combined_txt) %>%
+trigram_tb <- ngram_tb %>%
   unnest_tokens(trigram, text, token = "ngrams", n = 3) %>%
   mutate_at("trigram", str_replace, "[[:punct:]]", "") %>%
+  filter(!str_detect(trigram, "\\d+")) %>% 
   separate(trigram, c("word1", "word2", "word3"), sep = " ") %>%
   filter(!word1 %in% stop_words$word,
          !word2 %in% stop_words$word,
          !word3 %in% stop_words$word) %>%
-  unite(trigram, word1, word2, word3,  sep = " ") %>%
-  filter(!str_detect(trigram, "\\d+")) %>% 
-  filter(!str_detect(trigram, "NA"))
+  filter(!word1 %in% bad_words$word,
+         !word2 %in% bad_words$word,
+         !word3 %in% bad_words$word)
 
 head(trigram_tb)
 ```
 
-
-#### Save the ngrams 
+### Quadgram
 
 ```{r}
-dir.create(here("10_DataScienceCapstone/data/ngrams"))
+quadgram_tb <- ngram_tb %>%
+  unnest_tokens(quadgram, text, token = "ngrams", n = 4) %>%
+  mutate_at("quadgram", str_replace, "[[:punct:]]", "") %>%
+  filter(!str_detect(quadgram, "\\d+")) %>% 
+  separate(quadgram, c("word1", "word2", "word3", "word4"), sep = " ") %>%
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word,
+         !word3 %in% stop_words$word,
+         !word4 %in% stop_words$word) %>%
+  filter(!word1 %in% bad_words$word,
+         !word2 %in% bad_words$word,
+         !word3 %in% bad_words$word,
+         !word4 %in% bad_words$word)
 
-save(unigram_tb, file = here("10_DataScienceCapstone/data/ngrams/unigrams.rda"))
-save(bigram_tb, file = here("10_DataScienceCapstone/data/ngrams/bigrams.rda"))
-save(trigram_tb, file = here("10_DataScienceCapstone/data/ngrams/trigrams.rda"))
+head(quadgram_tb)
+```
+
+### Save the ngrams with Feather
+
+```{r}
+if(!dir.exists(here("app/data"))){
+  dir.create(here("app/data"))
+}
+
+# save ngrams with feather in app folder
+ngrams_path <- here('app/data')
+write_feather(unigram_tb, here(ngrams_path, "unigrams.feather"))
+write_feather(bigram_tb, here(ngrams_path, "bigrams.feather"))
+write_feather(trigram_tb, here(ngrams_path, "trigrams.feather"))
+write_feather(quadgram_tb, here(ngrams_path, "quadgram.feather"))
 ```
 
 With the data cleaned, we can start analyzing the frequency of words.
@@ -337,24 +350,26 @@ wordcloud_plot <- function(tibble, file_name, top_num=100) {
     wordcloud2(size=0.7, color='random-dark', minRotation = 0, maxRotation = 0)
   
   saveWidget(wordcloud, "tmp.html", selfcontained = F) 
-  webshot("tmp.html", here("10_DataScienceCapstone/figs", file_name), delay = 5, vwidth = 1000, vheight = 800)
+  webshot("tmp.html", here("figs", file_name), delay = 5, vwidth = 800, vheight = 600)
   
-  unlink(here("10_DataScienceCapstone/rmd", "tmp_files"), recursive = TRUE)
-  unlink(here("10_DataScienceCapstone/rmd", "tmp.html"))
+  unlink(here("report", "tmp_files"), recursive = TRUE)
+  unlink(here("report", "tmp.html"))
 }
 ```
-
 
 ### Unigrams
 
 ```{r uni_bar}
-plot_top(unigram_tb, 15) 
+unigram_tb %>% 
+  plot_top(15) 
+
+ggsave(here("figs/unigram_bar.png"), width = 12,  height = 8)
 ```
 
 ```{r uni_cloud}
 file_name <- "unigram_wc.png"
 wordcloud_plot(unigram_tb, file_name, 150)
-knitr::include_graphics(path.expand(here("10_DataScienceCapstone/figs", file_name)))
+knitr::include_graphics(path.expand(here("figs", file_name)))
 ```
 
 For single term words, the words time, people and day are very common. We also see the word 'rt' which might stand for retweet from twitter, and should be added to stop words. We also see teh words game, team, and night which all points towards a sports game. Then there's the word 'lol' which I believe comes from twitter as well.
@@ -364,13 +379,19 @@ The word cloud shows us more words, and can prove useful for identifying stop wo
 ### Bigrams
 
 ```{r bi_bar}
-plot_top(bigram_tb, 15) 
+bigram_tb <- bigram_tb %>% 
+  unite(bigram, word1, word2, sep=" ") 
+
+bigram_tb %>% 
+  plot_top(15) 
+
+ggsave(here("figs/bigram_bar.png"), width = 12,  height = 8)
 ```
 
 ```{r bi_cloud}
 file_name <- "bigram_wc.png"
-wordcloud_plot(bigram_tb, file_name, 150)
-knitr::include_graphics(path.expand(here("10_DataScienceCapstone/figs", file_name)))
+wordcloud_plot(bigram_tb, file_name, 100)
+knitr::include_graphics(path.expand(here("figs", file_name)))
 ```
 
 For bigrams, we see some US locations are very common, along with terms related to the government (white house, vice president, supreme court) which possible came from the news corpus. We also see the terms happy birthday and mothers day, which is should belong to the twitter corpus.
@@ -378,16 +399,22 @@ For bigrams, we see some US locations are very common, along with terms related 
 ### Trigrams
 
 ```{r tri_bar}
-plot_top(trigram_tb, 15)
+trigram_tb <- trigram_tb %>% 
+  unite(bigram, word1, word2, word3, sep=" ") 
+
+trigram_tb %>% 
+  plot_top(15) 
+
+ggsave(here("figs/trigram_bar.png"), width = 12,  height = 8)
 ```
 
 ```{r tri_cloud}
 file_name <- "trigram_wc.png"
 wordcloud_plot(trigram_tb, file_name, 100)
-knitr::include_graphics(path.expand(here("10_DataScienceCapstone/figs", file_name)))
+knitr::include_graphics(path.expand(here("figs", file_name)))
 ```
 
-As we analyse trigrams now, we see the previous term "mothers day" is now connected to "happy mothers day", which shows the relationship between the terms. Holidays like Cinco de Mayo and St. Patrick's Day is also popping up, along with names like Gov Chris Christie, President Barrack Obama, and Martin Luther King.
+As we analyse trigrams now, we see the previous term "mothers day" is now connected to "happy mothers day", which shows the relationship between the terms. Holidays like Cinco de Mayo and St. Patrick's Day are also popping up, along with names like Gov Chris Christie, President Barrack Obama, and Martin Luther King.
 
 ## Document Term matrix
 
@@ -398,7 +425,7 @@ TF-IDF will convert text documents in to a form where each sentence is a documen
 Using the `tm` package, I can cast my data frames into a dtm.
 
 ```{r}
-my_dtm <- tibble(line = 1:(length(combined_txt)), text = combined_txt) %>%
+my_dtm <- ngram_tb %>%
   unnest_tokens(word, text) %>% 
   count(line, word) %>% 
   cast_dtm(line, word, n)
@@ -439,10 +466,9 @@ I plan to generate another random sample from the news dataset to validate my pr
 # locale options: en_US, de_DE, ru_RU and fi_FI
 # outdir = directory name
 
-
 download_data  <- function(locale, outdir) {
-    here::i_am("10_DataScienceCapstone/report/milestone-report.Rmd")
-    data_path <- here("10_DataScienceCapstone/data")
+    here::i_am("report/milestone-report.Rmd")
+    data_path <- here("data")
     
     if (dir.exists(here(data_path, outdir))) {
         print("directory already exists")
@@ -458,6 +484,7 @@ download_data  <- function(locale, outdir) {
         unzip(zipfile = temp, exdir = data_path)
         unlink(temp)
     }
+    
     # save directory of extracted zip file
     final_path <- here(data_path, "final")
     
@@ -556,7 +583,7 @@ sample_file <- function(filename, filepath, prob) {
     sub_file <- file[rbinom(n = len, size = 1, prob = prob) == 1]
     close(con)
     
-    sample_path <- here("10_DataScienceCapstone/data/sampled")
+    sample_path <- here("data/sampled")
     if (!dir.exists(sample_path)) {
         dir.create(sample_path)
     }
@@ -572,7 +599,7 @@ sample_file <- function(filename, filepath, prob) {
 
 ### helper functions for plotting
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 # plots top n words
 plot_top <- function(tibble, top_num) {
     tibble %>%

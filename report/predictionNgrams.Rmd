@@ -1,0 +1,304 @@
+---
+title: Next Word Prediction 
+subtitle: How the Ngrams model works
+author: Benedict Neo Yao En
+date: 11-10-2021
+output:
+  html_document:
+   toc: true
+   toc_float: true
+   toc_depth: 2
+   theme: 
+    bootswatch: minty
+   highlight: zenburn
+   df_print: paged
+   code_folding: show
+---
+
+## Load libraries
+
+```{r}
+library(tidyverse)
+library(here)
+library(feather)
+library(multidplyr)
+library(parallel)
+library(tidytext)
+```
+
+We load our ngrams with feather
+
+```{r}
+ngrams_path <- here('data/ngrams')
+
+bigrams <- read_feather(here(ngrams_path, "bigrams.feather")) 
+trigrams <- read_feather(here(ngrams_path, "trigrams.feather"))
+quadgrams  <- read_feather(here(ngrams_path, "quadgram.feather"))
+bad_words <- read_feather(here('data/bad_words.feather'))
+```
+
+## Parallel Processing
+
+### detect cores
+
+```{r}
+cl <- detectCores()
+cl
+```
+
+This tells us my machine has 8 cores
+
+### Creating clusters
+
+```{r}
+cluster <- new_cluster(cl)
+cluster
+```
+
+Now that we've created our cluster object, we can start using multidplyr
+
+```{r}
+cluster_library(cluster, "tidyverse")
+```
+
+Attatch the tidyverse library to our cluster
+
+### Partition dataset for parallel processing
+
+First we partition our data by assigning groups to each row of our data
+
+```{r}
+group <- rep(1:cl, length.out = nrow(bigrams))
+bigrams <- bind_cols(tibble(group), bigrams)
+head(bigrams, 10)
+```
+We've grouped our data into 8 groups, since we have 8 cores. This mean each core will handle each subset of our data.
+
+## Bigrams
+
+```{r}
+bigrams <- bigrams %>%
+    group_by(group) %>% 
+    partition(cluster = cluster)
+bigrams
+```
+The output tells us information about the clusters and how many rows are in each cluster.
+
+
+### matching to bigram
+
+```{r}
+matchBigram <- function(input1, n = 5) {
+    prediction <- bigrams %>%
+        filter(word1 == input1) %>%
+        collect() %>%
+        mutate(freq = str_count(word2)) %>%
+        arrange(desc(freq)) %>% 
+        pull(word2)
+    
+    prediction[1:n]
+}
+
+matchBigram('bad')
+```
+
+Here, the words that follow bad are the following. They are also ordered in terms of frequency (most frequent to least)
+
+## Trigram
+
+```{r}
+group <- rep(1:cl, length.out = nrow(trigrams))
+trigrams <- bind_cols(tibble(group), trigrams)
+
+trigrams <- trigrams %>%
+    group_by(group) %>% 
+    partition(cluster = cluster)
+trigrams
+```
+
+### Match to trigrams
+
+```{r}
+matchTrigram <- function(input1, input2, n = 5) {
+    
+    # match 1st and 2nd word in trigram, and return third word
+    prediction <- trigrams %>%
+        filter(word1 == input1, word2 == input2) %>%
+        collect() %>%
+        mutate(freq = str_count(word3)) %>%
+        arrange(desc(freq)) %>%
+        pull(word3)
+    
+    # if no matches, match 1st word in trigram, and return 2nd word
+    if (length(prediction) == 0) {
+        prediction <- trigrams %>%
+            filter(word1 == input2) %>%
+            collect() %>%
+            mutate(freq = str_count(word2)) %>%
+            arrange(desc(freq)) %>%
+            pull(word2)
+        
+        # if no matches, match 2nd word in trigram, and return 3rd word
+        if (length(prediction) == 0) {
+            prediction <- trigrams %>%
+                filter(word2 == input2) %>%
+                collect() %>%
+                mutate(freq = str_count(word3)) %>%
+                arrange(desc(freq)) %>%
+                pull(word3)
+            
+            # all else fails, find match in bigram
+            if (length(prediction) == 0) {
+                prediction <- matchBigram(input2, n)
+            }
+        }
+    }
+    
+    prediction[1:n]
+}
+
+matchTrigram('I', 'love')
+```
+
+The comments pretty much tell the story, if nothing matches the trigram, we match the last word to our bigrams.
+
+## Quadgram
+
+```{r}
+group <- rep(1:cl, length.out = nrow(quadgrams))
+quadgrams <- bind_cols(tibble(group), quadgrams)
+
+quadgrams <- quadgrams %>%
+    group_by(group) %>% 
+    partition(cluster = cluster)
+quadgrams
+```
+
+### Matching to quadgrams
+
+```{r}
+matchQuadgram <- function(input1, input2, input3, n=5) {
+    
+    # match 1st, 2nd, 3rd word in quadgram, and return 4th word
+    prediction <- quadgrams %>%
+        filter(word1 == input1, word2 == input2, word3 == input3) %>%
+        collect() %>%
+        mutate(freq = str_count(word4)) %>%
+        arrange(desc(freq)) %>%
+        pull(word4)
+    
+    # match 1st and 2nd, return 3rd word
+    if (length(prediction) == 0) {
+        prediction <- quadgrams %>%
+            filter(word1 == input2, word2 == input3) %>%
+            collect() %>%
+            mutate(freq = str_count(word3)) %>%
+            arrange(desc(freq)) %>%
+            pull(word3)
+        
+        # match 2nd and 3rd, return 4th
+        if (length(prediction) == 0) {
+            prediction <- quadgrams %>%
+                filter(word2 == input2, word3 == input3) %>%
+                collect() %>%
+                mutate(freq = str_count(word4)) %>%
+                arrange(desc(freq)) %>%
+                pull(word4)
+            
+            # if no matches, find match in trigrams
+            if (length(prediction) == 0) {
+                prediction <- matchTrigram(input2, input3, n)
+            }
+        }
+    }
+    
+    prediction[1:n]
+}
+
+matchQuadgram('my', 'favourite', 'food')
+```
+
+
+## Clean input text
+
+```{r}
+clean_input <- function(input) {
+    
+    input <- tibble(line = 1:(length(input)), text = input) %>%
+        unnest_tokens(word, text) %>%
+        filter(!str_detect(word, "\\d+")) %>%
+        mutate_at("word", str_replace, "[[:punct:]]", "") %>% # remove punctuation
+        anti_join(bad_words, by = "word") %>% # remove profane words
+        pull(word)
+    
+    input
+}
+
+clean_input("I h8 this crap SO much!!!")
+```
+
+## Next word prediction
+
+```{r}
+next_word <- function(input, n=5) {
+    input <- clean_input(input)
+    wordCount <- length(input)
+    
+    if (wordCount == 0) {
+        pred <- "Please enter a word"
+    }
+    
+    if (wordCount == 1) {
+        pred <- matchBigram(input[1], n)
+    }
+    
+    if (wordCount == 2) {
+        pred <- matchTrigram(input[1], input[2], n)
+    }
+    
+    if (wordCount == 3) {
+        pred <- matchQuadgram(input[1], input[2], input[3], n)
+    }
+    
+    if (wordCount > 3) {
+        # match with last three words in input
+        input <- input[(wordCount - 2):wordCount]
+        pred <- matchQuadgram(input[1], input[2], input[3], n)
+    }
+    
+    if(NA %in% pred) {
+        return("No predictions available :(")
+    }
+    else {
+        return(pred)
+    }
+}
+
+next_word("President of the United")
+```
+
+Testing a simple example on the final function, it seems my ngrams model fails to give us States, which has to be the most obvious response to the next word prediction. It also shows you the limitations of a simple ngrams model, since it can only give us predictions that is contained in our ngrams
+
+## Better alternatives for language models:
+
+For models to predict the next word, it needs to remember context and the order of the words. For example, the sentence "I grew up in France, I can speak fluent [MASK]", if the model saves the information that the person grew up in France (a country), it should be able to produce a prediction that relates to the langauge in France, which is French. Langauge models today are able to do that very well.
+
+Below are two approaches suitable for a next word prediction
+
+### LSTM
+
+Read https://colah.github.io/posts/2015-08-Understanding-LSTMs/ to learn more about LSTM
+
+### Transformers
+
+Resources:
+
+- [If you know SQL, you probably understand Transformer, BERT and GPT.](https://towardsdatascience.com/if-you-know-sql-you-probably-understand-transformer-bert-and-gpt-7b197cb48d24)
+- [Attention? Attention!](https://lilianweng.github.io/lil-log/2018/06/24/attention-attention.html)
+- [CS224N: Natural Language Processing with Deep Learning](https://www.youtube.com/playlist?list=PLoROMvodv4rOhcuXMZkNm7j3fVwBBY42z)
+
+
+```{r}
+sessionInfo()
+```
+

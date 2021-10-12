@@ -1,0 +1,76 @@
+## loading data
+```{r}
+setwd(".")
+file_names = c("blogs.txt", "news.txt", "twitter.txt")
+data_path <- here("10_DataScienceCapstone/data/original")
+
+blogs_txt_path <- here(data_path, file_names[1])
+news_txt_path <-  here(data_path, file_names[2])
+twitter_txt_path <-  here(data_path, file_names[3])
+
+readTxtFile <- function(path) {
+    con <- file(path, "r")
+    text <- readLines(con, skipNul=T)
+    # text_df <- tibble(text = text) # %>%
+        # unnest_tokens(word, text, token = "words")
+    close(con)
+    return(text)
+}
+
+twitter_txt <- readTxtFile(twitter_txt_path)
+news_txt <- readTxtFile(news_txt_path)
+blogs_txt <- readTxtFile(blogs_txt_path)
+```
+
+## Quiz 1
+
+### Q1
+```{r}
+file.info(blogs_txt_path)$size / 1024^2
+```
+
+
+### Q2
+```{r}
+length(twitter_txt)
+```
+
+### Q3
+```{r}
+longest_line <- function(txt) {
+    return(as.numeric(summary(nchar(txt))["Max."]))
+}
+
+longest_line(twitter_txt)
+longest_line(news_txt)
+longest_line(blogs_txt)
+```
+
+
+### Q4
+```{r}
+## helper function
+get_lines_w_pattern <- function(txt, pattern){
+    temp <- grep(pattern = pattern, txt)
+    num <- length(temp)
+    return(num)
+}
+
+love_num <- get_lines_w_pattern(twitter_txt, " love ")
+hate_num <- get_lines_w_pattern(twitter_txt, " hate ")
+
+print(love_num / hate_num)
+```
+
+### Q5
+```{r}
+twitter_txt[grep("biostats", twitter_txt)]
+```
+
+### q6
+```{r}
+line <- "A computer once beat me at chess, but it was no match for me at kickboxing"
+
+get_lines_w_pattern(twitter_txt, line)
+```
+
