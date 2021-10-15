@@ -34,7 +34,7 @@ View the full report [here](https://benthecoder.github.io/next-word-predictor/re
 
 ## Model Building
 
-The plan is to build a markov chain and LSTM model with python
+I built a simple Ngrams model with R. 
 
 ## Resources for NLP
 
