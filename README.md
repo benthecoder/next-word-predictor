@@ -34,7 +34,7 @@ Click [here](docs/corpora-info.md) for more information about the corpora used t
 
 <img src="figs/trigram_wc.png" width="500" height="400" />
 
-View the full report [here](https://benthecoder.github.io/next-word-predictor/report/milestone-report.html)
+View the full report [here](https://benthecoder.github.io/next-word-predictor/app/report/milestone-report.html)
 
 You can find all the ngrams in the data folder.
 
@@ -44,9 +44,9 @@ The intial approach was to place ngrams in tibble format, and filter for the rig
 
 One way to improve this model is to use LSTM or transformers, which can give much more accurate predictions.
 
-View the initial approach [here](https://benthecoder.github.io/next-word-predictor/report/app/predictionNgrams.html)
+View the initial approach [here](https://benthecoder.github.io/next-word-predictor/app/report/predictionNgrams.html)
 
-View the markov approach [here](https://benthecoder.github.io/next-word-predictor/report/app/markov-chain.html)
+View the markov approach [here](https://benthecoder.github.io/next-word-predictor/app/report/markov-chain.html)
 
 ## Resources
 
