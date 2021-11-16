@@ -6,7 +6,7 @@ Click [here](docs/corpora-info.md) for more information about the corpora used t
 
 ## The app
 
-<img src="app.png" width="600" height="400" />
+<img src="app.png" width="700" height="400" />
 
 ## Data Analysis
 
