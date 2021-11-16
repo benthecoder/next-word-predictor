@@ -6,7 +6,7 @@ Click [here](docs/corpora-info.md) for more information about the corpora used t
 
 ## The app
 
-<img src="app.png" width="800" height="400" />
+<img src="app.png" width="600" height="400" />
 
 ## Data Analysis
 
@@ -36,7 +36,7 @@ Click [here](docs/corpora-info.md) for more information about the corpora used t
 
 View the full report [here](https://benthecoder.github.io/next-word-predictor/report/milestone-report.html)
 
-You can find all the original data, sampled data and ngrams in the data folder.
+You can find all the ngrams in the data folder.
 
 ## Model Building
 

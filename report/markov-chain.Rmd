@@ -1,0 +1,274 @@
+---
+title: Markov Chain Model 
+subtitle: Predicting next word with Markov Chains
+author: Benedict Neo Yao En
+date: 14-11-2021
+output:
+  html_document:
+   toc: true
+   toc_float: true
+   toc_depth: 2
+   theme: 
+    bootswatch: minty
+   highlight: zenburn
+   df_print: paged
+   code_folding: show
+---
+
+## Importing libraries
+```{r}
+library(tidyverse)
+library(tidytext)
+library(tokenizers)
+library(markovchain)
+library(here)
+```
+
+# Markov Chains
+
+A Markov chain or Markov process is a stochastic model describing a sequence of possible events in which the probability of each event depends only on the state attained in the previous event
+
+Take weather for example, we can have 3 states - rainy, sunny and cloudy. using the previous events (it rained today)
+
+Using this principle, we can predict the next word based on the last word typed. The Markov Chain model will model the transition probability between states, where each state are the tokens.
+
+More information about markov chains on the [wikipedia page](https://en.wikipedia.org/wiki/Markov_chain)
+
+Below is an example of how it works with a simple sentence.
+
+## Markov Chains in R
+
+We have a simple sentence, and then tokenize it to individual tokens.
+
+```{r}
+text <- c("the quick brown fox jumps over the lazy dog and the angry dog chase the fox")
+
+(tokens <- strsplit(text, split = " ") %>% unlist())
+```
+
+To create a Markov chains without manually calculating the tarnsitions, we can utilize the `markovchain` package. 
+
+```{r}
+simple_markov <- markovchainFit(tokens, method = "laplace")
+```
+
+## Markov Chain Visualized
+
+To visualize our markov chain, we can simply use the plot function
+
+```{r}
+set.seed(2021)
+plot(simple_markov$estimate)
+```
+
+The arrows indicate the transition to the next state and the numbers are the probability of those transitions. For example, starting at "the", there is a probability it will go to "angry", "lazy", "quick", and "fox". As "the" is before those 4 words, the probability that it will transition to them is equally likely, which is why it's 0.25. 
+
+## Transition Matrix
+
+With our markov model, we can run `$estimate` on it and it will show the dimensions (number of words) and the transition matrix.
+
+```{r}
+simple_markov$estimate
+```
+
+Using the `markovchainSequence`, we can generate a sentence based on our markov chain model
+
+```{r}
+markovchainSequence(
+  n = 5,
+  markovchain = simple_markov$estimate,
+  t0 = "the",
+  # set the first word
+  include.t0 = T
+) %>% 
+  paste(collapse = " ")
+```
+
+Boom! A sentence was generated, althought it's the same exact sentence it was fed with.
+
+We can also generate multiple sentences by doing a for loop around it.
+
+```{r}
+for (i in 1:5) {
+  set.seed(i)
+  markovchainSequence(
+  n = 5,
+  markovchain = simple_markov$estimate,
+  t0 = "the",
+  # set the first word
+  include.t0 = T
+) %>% 
+  paste(collapse = " ") %>% 
+    print()
+}
+```
+
+Now let's move on to fitting our ngram to the markov model.
+
+# Model fitting with Ngrams
+
+The plan was to fit all unigram, bigram, trigram and quadgram to the markov chain. However, due to the memory and size limit of the shiny app, I have resorted to using teh unigram only. 
+
+```{r}
+unigrams <- read_rds(here("app", "data/unigrams.rds"))
+```
+
+```{r}
+length(unigrams$word)
+```
+
+There are too many words in our unigrams and it would significantly slow down the training process. We will be sampling ~ 60k of unigrams by filtering how many lines we want
+
+```{r}
+sub_unigrams <- unigrams %>%
+  filter(line < 800) %>% 
+  pull(word)
+```
+
+
+## Fitting to ngrams
+
+```{r eval=FALSE, include=TRUE}
+markov_uni <- markovchainFit(sub_unigrams, method = "laplace")
+write_rds(markov_uni, here("app/models/markov_uni_small.rds")) # smaller model
+```
+
+## Loading the models
+
+```{r}
+markov_uni <- read_rds(here("app/models/markov_uni.rds"))
+```
+
+## MarkovChainSequence with unigram
+```{r}
+word <- 'who'
+markovchainSequence(
+  n = 1,
+  markovchain = markov_uni$estimate,
+  t0 = word,
+  include.t0 = F
+) %>% paste(collapse = " ")
+```
+
+# Predicting next word with markov model
+```{r}
+next_word <- function(word, num=5) {
+  sents <- c()
+  for (i in 1:num) {
+    set.seed(i) # randomize generation
+    {
+      sent <- markovchainSequence(
+        n = 1,
+        markovchain = markov_uni$estimate,
+        t0 = word,
+        include.t0 = F
+      ) %>%  # set the first word
+        paste(collapse = " ") 
+      sents <- c(sents, sent)
+    }
+  }
+  return(sents)
+}
+
+next_word('who')
+```
+
+
+# Cleaning the input
+
+```{r}
+bad_words <- read_rds(here("app/data/bad_words.rds"))
+clean_input <- function(input) {
+    input <- tibble(line = 1:(length(input)), text = input) %>%
+        unnest_tokens(word, text) %>%
+        filter(!str_detect(word, "\\d+")) %>%
+        mutate_at("word", str_replace, "[[:punct:]]", "") %>% # remove punctuation
+        anti_join(bad_words, by = "word") %>% # remove profane words
+        pull(word)
+    
+    input
+}
+```
+
+# next word function
+
+```{r}
+next_word <- function(word, num = 5) {
+  word <- clean_input(word)
+  length <- length(word)
+  
+  if (length > 1) {
+    word <- word[length]
+    print(word)
+  }
+  
+  sents <- c()
+  for (i in 1:num) {
+    set.seed(i) # randomize generation
+    {
+      sent <- markovchainSequence(
+        n = 1,
+        markovchain = markov_uni$estimate,
+        t0 = word,
+        include.t0 = F
+      ) %>%  # set the first word
+        paste(collapse = " ")
+      sents <- c(sents, sent)
+    }
+  }
+  return(unique(sents))
+}
+```
+
+
+```{r}
+next_word('Love', 5)
+```
+
+
+# Dealing with words not in markov chain
+
+If words are not in our markov chain, the function will spit out a nasty errror `Initial state is not defined`
+
+To handle this, we wrap the function in a try block, and the errors are surpressed. 
+
+```{r}
+pred <- try(markovchainSequence(
+              n = 1,
+              markovchain = markov_uni$estimate,
+              t0 = 'zzz',
+              include.t0 = F
+          ), silent=T)
+
+print(pred[1])
+
+if (nchar(pred[1]) > 100) {
+  print("no predictions available :(")
+}
+```
+
+# Better alternatives for language models:
+
+For models to predict the next word, it needs to remember context and the order of the words. For example, the sentence "I grew up in France, I can speak fluent [MASK]", if the model saves the information that the person grew up in France (a country), it should be able to produce a prediction that relates to the langauge in France, which is French. Langauge models today are able to do that very well.
+
+Below are two approaches suitable for a next word prediction
+
+## LSTM
+
+Read https://colah.github.io/posts/2015-08-Understanding-LSTMs/ to learn more about LSTM
+
+### Transformers
+
+Resources:
+
+- [If you know SQL, you probably understand Transformer, BERT and GPT.](https://towardsdatascience.com/if-you-know-sql-you-probably-understand-transformer-bert-and-gpt-7b197cb48d24)
+- [Attention? Attention!](https://lilianweng.github.io/lil-log/2018/06/24/attention-attention.html)
+- [CS224N: Natural Language Processing with Deep Learning](https://www.youtube.com/playlist?list=PLoROMvodv4rOhcuXMZkNm7j3fVwBBY42z)
+
+
+
+# Session info
+```{r}
+sessionInfo()
+```
+

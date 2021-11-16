@@ -5,9 +5,10 @@ account: benthecoder
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 4848121
-bundleId: 5129345
+bundleId: 5255869
 url: https://benthecoder.shinyapps.io/Next-Word-PredictR/
-when: 1634013976.97159
-lastSyncTime: 1634013976.9716
+when: 1637018093.88755
+lastSyncTime: 1637018093.88759
 asMultiple: FALSE
 asStatic: FALSE
+ignoredFiles: data/.DS_Store|data/unigrams.rds|docs/.DS_Store|docs/project_overview.md|models/.DS_Store|report/.DS_Store|report/milestone-report.html|report/predictionNgrams.html|scripts/.DS_Store|scripts/naive_markov/.DS_Store|scripts/naive_markov/next-word-predict.R|scripts/naive_markov/next-word.R|www/.DS_Store

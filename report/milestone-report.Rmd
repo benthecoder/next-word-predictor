@@ -43,8 +43,6 @@ I first start with loading the libraries using the package check function from [
 
 ```{r load_libraries, message=FALSE}
 ## list all packages
-
-
 packages = c(
   "tidyverse", # a collection of R packages designed for data science
   "tidytext", # text mining library that follows the tidy data principle
@@ -205,7 +203,8 @@ bad_words <- get_bad_words() %>%
 head(bad_words, 3)
 
 ## save bad words file
-write_feather(bad_words, here("app/data/bad_words.feather"))
+# write_feather(bad_words, here("app/data/bad_words.feather"))
+write_rds(bad_words, here("app/data/bad_words.rds"))
 ```
 
 With profane and stop words data ready, we can begin building our n-gram models. Note the cleaning is happening as we are building our ngram tibbles.
@@ -245,7 +244,7 @@ head(ngram_tb)
 ```{r unigram_tb}
 unigram_tb <-  ngram_tb %>% 
   unnest_tokens(word, text) %>% # turn our text file into individual words
-  anti_join(stop_words, by = "word") %>% # remove stop words
+  # anti_join(stop_words, by = "word") %>% # remove stop words
   anti_join(bad_words, by = "word") %>% # remove profane words
   filter(!str_detect(word, "\\d+")) %>% # filter digits
   mutate_at("word", str_replace, "[[:punct:]]", "") # remove punctuation
@@ -261,9 +260,9 @@ bigram_tb <- ngram_tb %>%
   mutate_at("bigram", str_replace, "[[:punct:]]", "") %>%
   filter(!str_detect(bigram, "\\d+")) %>%
   separate(bigram, c("word1", "word2"), sep = " ") %>%
-  filter(!word1 %in% stop_words$word,
-         !word2 %in% stop_words$word, 
-         !word1 %in% bad_words$word,
+  # filter(!word1 %in% stop_words$word,
+  #        !word2 %in% stop_words$word) %>% 
+  filter(!word1 %in% bad_words$word,
          !word2 %in% bad_words$word)
 
 head(bigram_tb)
@@ -277,9 +276,9 @@ trigram_tb <- ngram_tb %>%
   mutate_at("trigram", str_replace, "[[:punct:]]", "") %>%
   filter(!str_detect(trigram, "\\d+")) %>% 
   separate(trigram, c("word1", "word2", "word3"), sep = " ") %>%
-  filter(!word1 %in% stop_words$word,
-         !word2 %in% stop_words$word,
-         !word3 %in% stop_words$word) %>%
+  # filter(!word1 %in% stop_words$word,
+  #        !word2 %in% stop_words$word,
+  #        !word3 %in% stop_words$word) %>%
   filter(!word1 %in% bad_words$word,
          !word2 %in% bad_words$word,
          !word3 %in% bad_words$word)
@@ -295,10 +294,10 @@ quadgram_tb <- ngram_tb %>%
   mutate_at("quadgram", str_replace, "[[:punct:]]", "") %>%
   filter(!str_detect(quadgram, "\\d+")) %>% 
   separate(quadgram, c("word1", "word2", "word3", "word4"), sep = " ") %>%
-  filter(!word1 %in% stop_words$word,
-         !word2 %in% stop_words$word,
-         !word3 %in% stop_words$word,
-         !word4 %in% stop_words$word) %>%
+  # filter(!word1 %in% stop_words$word,
+  #        !word2 %in% stop_words$word,
+  #        !word3 %in% stop_words$word,
+  #        !word4 %in% stop_words$word) %>%
   filter(!word1 %in% bad_words$word,
          !word2 %in% bad_words$word,
          !word3 %in% bad_words$word,
@@ -314,12 +313,19 @@ if(!dir.exists(here("app/data"))){
   dir.create(here("app/data"))
 }
 
+# # save ngrams with feather in app folder
+# ngrams_path <- here('app/data')
+# write_feather(unigram_tb, here(ngrams_path, "unigrams.feather"))
+# write_feather(bigram_tb, here(ngrams_path, "bigrams.feather"))
+# write_feather(trigram_tb, here(ngrams_path, "trigrams.feather"))
+# write_feather(quadgram_tb, here(ngrams_path, "quadgram.feather"))
+
 # save ngrams with feather in app folder
 ngrams_path <- here('app/data')
-write_feather(unigram_tb, here(ngrams_path, "unigrams.feather"))
-write_feather(bigram_tb, here(ngrams_path, "bigrams.feather"))
-write_feather(trigram_tb, here(ngrams_path, "trigrams.feather"))
-write_feather(quadgram_tb, here(ngrams_path, "quadgram.feather"))
+write_rds(unigram_tb, here(ngrams_path, "unigrams.rds"))
+write_rds(bigram_tb, here(ngrams_path, "bigrams.rds"))
+write_rds(trigram_tb, here(ngrams_path, "trigrams.rds"))
+write_rds(quadgram_tb, here(ngrams_path, "quadgram.rds"))
 ```
 
 With the data cleaned, we can start analyzing the frequency of words.

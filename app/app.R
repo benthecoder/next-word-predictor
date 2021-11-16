@@ -2,10 +2,9 @@
 library(shiny)
 library(markdown)
 library(bslib)
-library(here)
 
 # source code for prediction model --------------------------------
-source('models/next-word.R')
+source('scripts/next-word-markov.R')
 
 # UI for shiny -----------------------------------------------------
 
@@ -33,23 +32,22 @@ ui <- fluidPage(navbarPage(
                      
                      mainPanel(
                          h2("Predictions 🔮"),
-                         p("The predictions take ~ 5 to 10 seconds. Please be patient"),
                          h3(textOutput("pred", container = pre))
                      )
                  )
-             )), 
+             )),
     tabPanel("How it works",
-             includeHTML(here(
-                 "report/predictionNgrams.html"
-             ))),
+             includeHTML(
+                 "report/markov-chain.html"
+             )),
     tabPanel("About the data",
-             includeMarkdown(here(
+             includeMarkdown(
                  "docs/corpora-info.md"
-             ))),
+             )),
     tabPanel("More",
              img(src="nyancat.gif", align = "center", height='300px',width='300px'),
              hr(),
-             p("contact me at benthecoder@gmail.com"),
+             p("contact me at benthecoder07@gmail.com"),
              tags$a(href="https://www.linkedin.com/in/benedictneo/", "Connect with me on Linkedin"),
              hr(),
              tags$a(href="https://github.com/benthecoder/next-word-predictor", "Source code on Github"),
