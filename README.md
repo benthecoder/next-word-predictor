@@ -1,4 +1,4 @@
-# Next word predictor with R and Python
+# Next word predictor with R
 
 This repo hosts the code for my next word predictor app using R for analysis and cleaning, and Python for modeling and deploying for my capstone project for the [Data Science Specialization by Johns Hopkins University](https://www.coursera.org/specializations/jhu-data-science).
 
